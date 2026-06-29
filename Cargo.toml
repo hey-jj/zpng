@@ -6,5 +6,15 @@ description = "lossless image codec (filter + zstd) faster and often smaller tha
 license = "MIT"
 repository = "https://github.com/hey-jj/zpng"
 readme = "README.md"
+keywords = ["image", "codec", "lossless", "compression", "zstd"]
+categories = ["compression", "multimedia::images"]
 
 [dependencies]
+# zstd does the entropy coding after the byte filter. The codec writes and reads
+# standard zstd frames at level 1, so a real zstd implementation is required for
+# wire compatibility. This crate binds libzstd.
+zstd = "0.13"
+
+[dev-dependencies]
+# Random-image round-trip coverage across every channel and depth combination.
+proptest = "1"
