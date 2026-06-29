@@ -1,10 +1,9 @@
 //! Round-trip contract. Compress then decompress must reproduce the pixels
 //! exactly and report the same geometry. This is the core lossless guarantee.
 //!
-//! The original harness loops over a photo corpus and runs the same three
-//! checks: compress never fails, decompress reports matching metadata, and the
-//! decompressed bytes equal the input. The corpus is replaced with synthetic
-//! images that hit every code path.
+//! Each test runs three checks: compress returns a blob, decompress reports
+//! matching metadata, and the decompressed bytes equal the input. The images
+//! are synthetic and cover every code path.
 
 mod common;
 
@@ -38,8 +37,7 @@ fn roundtrip_grid() {
     }
 }
 
-/// Mirror the original per-image contract for 8-bit images with 1 to 4
-/// channels, the exact shapes the harness loaded.
+/// Per-image contract for 8-bit images with 1 to 4 channels.
 #[test]
 fn roundtrip_eight_bit_channels() {
     for channels in 1..=4u32 {

@@ -54,7 +54,18 @@ little-endian and packed:
 
 Width and height come from 16-bit fields, so they cap at 65535. The pixel byte
 width, `channels * bytes_per_channel`, must be 8 or less. Compress returns
-`None` above that.
+`CompressError::PixelTooWide` above that.
+
+## Errors
+
+`compress` returns a `CompressError`: the pixel byte width exceeds 8, the
+geometry overflows 32-bit pixel math, or the buffer does not match the geometry.
+`decompress` returns a `DecodeError`: the blob is too short, the magic is wrong,
+the header geometry is out of range, the zstd frame fails to decode, or the
+frame size does not match the geometry. Both types implement `std::error::Error`.
+
+`decompress` validates the header geometry before allocating. A crafted blob
+cannot drive a large allocation or an out-of-bounds index.
 
 ## License
 
