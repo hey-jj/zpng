@@ -281,4 +281,105 @@ mod tests {
         unpack_and_unfilter(&output, &mut back, 2, 1, 5);
         assert_eq!(back, input);
     }
+
+    /// A 2-channel 16-bit image has pixel_bytes 4 and takes the color path, the
+    /// same path RGBA takes. Dispatch keys on the byte width, not the channel
+    /// count, so the color transform applies to its bytes. This pins the
+    /// filtered layout for that shape.
+    ///
+    /// Input 2x1, pixel_bytes 4, bytes `[10,20,30,40, 50,60,70,80]`.
+    /// Pixel 0: dr=10,dg=20,db=30,da=40. Y=30, U=20-30=246, V=20-10=10, A=40.
+    /// Pixel 1: dr=40,dg=40,db=40,da=40. Y=40, U=0, V=0, A=40.
+    /// Planes Y=[30,40] U=[246,0] V=[10,0] A=[40,40].
+    #[test]
+    fn color_path_via_two_channel_16bit() {
+        let input = [10u8, 20, 30, 40, 50, 60, 70, 80];
+        let mut output = [0u8; 8];
+        pack_and_filter(&input, &mut output, 2, 1, 4);
+        assert_eq!(output, [30, 40, 246, 0, 10, 0, 40, 40]);
+
+        let mut back = [0u8; 8];
+        unpack_and_unfilter(&output, &mut back, 2, 1, 4);
+        assert_eq!(back, input);
+    }
+
+    /// Generic paths for pixel_bytes 2, 6, 7, 8. Per-byte left delta, predictor
+    /// reset per row, interleaved output. Each case is hand-computed from the
+    /// algorithm so the byte layout is pinned, not just invertibility.
+    #[test]
+    fn generic_paths_exact_bytes() {
+        // (pixel_bytes, width, height, input, expected_filtered)
+        struct Case {
+            pixel_bytes: usize,
+            width: usize,
+            height: usize,
+            input: &'static [u8],
+            filtered: &'static [u8],
+        }
+        let cases = [
+            Case {
+                pixel_bytes: 2,
+                width: 3,
+                height: 1,
+                input: &[10, 200, 5, 250, 1, 2],
+                // [10-0,200-0, 5-10,250-200, 1-5,2-250]
+                filtered: &[10, 200, 251, 50, 252, 8],
+            },
+            Case {
+                pixel_bytes: 6,
+                width: 2,
+                height: 1,
+                input: &[1, 2, 3, 4, 5, 6, 100, 101, 102, 103, 104, 105],
+                filtered: &[1, 2, 3, 4, 5, 6, 99, 99, 99, 99, 99, 99],
+            },
+            Case {
+                pixel_bytes: 7,
+                width: 2,
+                height: 1,
+                input: &[0, 1, 2, 3, 4, 5, 6, 250, 251, 252, 253, 254, 255, 0],
+                // second pixel each byte minus the first, last wraps: 0-6=250
+                filtered: &[0, 1, 2, 3, 4, 5, 6, 250, 250, 250, 250, 250, 250, 250],
+            },
+            Case {
+                pixel_bytes: 8,
+                width: 2,
+                height: 1,
+                input: &[
+                    10, 20, 30, 40, 50, 60, 70, 80, 5, 25, 35, 45, 55, 65, 75, 85,
+                ],
+                // 5-10 wraps to 251, the rest are constant +5 deltas
+                filtered: &[10, 20, 30, 40, 50, 60, 70, 80, 251, 5, 5, 5, 5, 5, 5, 5],
+            },
+        ];
+
+        for case in cases {
+            let mut output = vec![0u8; case.input.len()];
+            pack_and_filter(
+                case.input,
+                &mut output,
+                case.width,
+                case.height,
+                case.pixel_bytes,
+            );
+            assert_eq!(
+                output, case.filtered,
+                "filtered bytes for pixel_bytes {}",
+                case.pixel_bytes
+            );
+
+            let mut back = vec![0u8; case.input.len()];
+            unpack_and_unfilter(
+                &output,
+                &mut back,
+                case.width,
+                case.height,
+                case.pixel_bytes,
+            );
+            assert_eq!(
+                back, case.input,
+                "inverse for pixel_bytes {}",
+                case.pixel_bytes
+            );
+        }
+    }
 }

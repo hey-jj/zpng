@@ -4,6 +4,7 @@
 mod common;
 
 use common::{assert_roundtrip, build, Pattern};
+use zpng::ImageData;
 
 /// Pixel byte width exactly 8 is accepted. channels=4, bytes_per_channel=2.
 #[test]
@@ -38,6 +39,45 @@ fn zero_area() {
         assert_eq!(back.width_pixels, w);
         assert_eq!(back.height_pixels, h);
     }
+}
+
+/// Pixel byte width zero. Either factor at zero gives `pixel_bytes == 0`, which
+/// is not the wide-pixel reject case, so compress proceeds. No filter runs and
+/// zstd compresses an empty input. The header still records the zero field.
+#[test]
+fn pixel_bytes_zero() {
+    // channels = 0.
+    let image = ImageData {
+        buffer: Vec::new(),
+        bytes_per_channel: 1,
+        channels: 0,
+        width_pixels: 4,
+        height_pixels: 4,
+        stride_bytes: 0,
+    };
+    let blob = zpng::compress(&image).expect("compress channels=0");
+    assert_eq!(blob[6], 0, "channels byte is zero");
+    let back = zpng::decompress(&blob).expect("decompress channels=0");
+    assert!(back.buffer.is_empty());
+    assert_eq!(back.channels, 0);
+    assert_eq!(back.width_pixels, 4);
+    assert_eq!(back.height_pixels, 4);
+
+    // bytes_per_channel = 0.
+    let image = ImageData {
+        buffer: Vec::new(),
+        bytes_per_channel: 0,
+        channels: 3,
+        width_pixels: 4,
+        height_pixels: 4,
+        stride_bytes: 0,
+    };
+    let blob = zpng::compress(&image).expect("compress bpc=0");
+    assert_eq!(blob[7], 0, "bytes-per-channel byte is zero");
+    let back = zpng::decompress(&blob).expect("decompress bpc=0");
+    assert!(back.buffer.is_empty());
+    assert_eq!(back.bytes_per_channel, 0);
+    assert_eq!(back.channels, 3);
 }
 
 /// One pixel images for every channel count.
@@ -87,5 +127,5 @@ fn dimension_truncation_is_documented() {
     // Stored width is the low 16 bits.
     assert_eq!(u16::from_le_bytes([blob[2], blob[3]]), 1);
     // The truncated header cannot describe the frame, so decode fails.
-    assert!(zpng::decompress(&blob).is_none());
+    assert!(zpng::decompress(&blob).is_err());
 }
