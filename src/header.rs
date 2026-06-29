@@ -5,6 +5,8 @@
 //! little-endian with no padding, so the header is always exactly
 //! [`HEADER_BYTES`] long.
 
+use crate::DecodeError;
+
 /// Magic value at the start of every blob. On disk the bytes are `F8 FB`.
 pub(crate) const MAGIC: u16 = 0xFBF8;
 
@@ -45,17 +47,18 @@ impl Header {
 
     /// Parse a header from the first 8 bytes of a blob.
     ///
-    /// Returns `None` when the slice is shorter than [`HEADER_BYTES`] or the
-    /// magic does not match.
-    pub(crate) fn parse(buffer: &[u8]) -> Option<Header> {
+    /// Returns [`DecodeError::TooShort`] when the slice is shorter than
+    /// [`HEADER_BYTES`], or [`DecodeError::BadMagic`] when the magic does not
+    /// match.
+    pub(crate) fn parse(buffer: &[u8]) -> Result<Header, DecodeError> {
         if buffer.len() < HEADER_BYTES {
-            return None;
+            return Err(DecodeError::TooShort);
         }
         let magic = u16::from_le_bytes([buffer[0], buffer[1]]);
         if magic != MAGIC {
-            return None;
+            return Err(DecodeError::BadMagic);
         }
-        Some(Header {
+        Ok(Header {
             width: u16::from_le_bytes([buffer[2], buffer[3]]),
             height: u16::from_le_bytes([buffer[4], buffer[5]]),
             channels: buffer[6],
