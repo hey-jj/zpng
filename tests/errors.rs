@@ -118,13 +118,13 @@ fn compress_rejects_undersized_buffer() {
     );
 }
 
-/// Compress rejects oversized geometry that overflows 32-bit pixel math rather
-/// than looping for billions of iterations.
+/// Compress rejects geometry that overflows 32-bit pixel math rather than
+/// looping for billions of iterations. The dimensions fit the u16 header fields,
+/// but `width * height * pixel_bytes` (65535 * 65535 * 2) exceeds u32.
 #[test]
 fn compress_rejects_overflowing_geometry() {
-    let mut image = build(1, 1, 1, 1, Pattern::Solid(0));
-    image.width_pixels = 0x1_0000;
-    image.height_pixels = 0x1_0000;
-    // width*height = 2^32, wraps to 0 in 32-bit math, so the product overflows.
+    let mut image = build(1, 1, 1, 2, Pattern::Solid(0));
+    image.width_pixels = 65535;
+    image.height_pixels = 65535;
     assert_eq!(zpng::compress(&image), Err(CompressError::GeometryOverflow));
 }

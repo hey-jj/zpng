@@ -16,17 +16,17 @@ pub(crate) const HEADER_BYTES: usize = 8;
 /// Parsed blob header.
 ///
 /// Width and height come from `u16` fields, so they top out at 65535. Channels
-/// and bytes-per-channel come from `u8` fields. The encoder truncates the
-/// caller geometry into these widths.
+/// and bytes-per-channel come from `u8` fields. The encoder rejects geometry
+/// that does not fit these widths.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Header {
-    /// Image width in pixels, low 16 bits of the caller value.
+    /// Image width in pixels.
     pub width: u16,
-    /// Image height in pixels, low 16 bits of the caller value.
+    /// Image height in pixels.
     pub height: u16,
-    /// Channel count, low 8 bits of the caller value.
+    /// Channel count.
     pub channels: u8,
-    /// Bytes per channel, low 8 bits of the caller value.
+    /// Bytes per channel.
     pub bytes_per_channel: u8,
 }
 

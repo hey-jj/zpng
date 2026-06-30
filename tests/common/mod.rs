@@ -93,8 +93,11 @@ pub fn assert_roundtrip(image: &ImageData) {
     assert_eq!(back.channels, image.channels);
     assert_eq!(back.height_pixels, image.height_pixels);
     assert_eq!(back.width_pixels, image.width_pixels);
-    // Stride drops bytes_per_channel by design.
-    assert_eq!(back.stride_bytes, image.width_pixels * image.channels);
+    // Stride is the tightly packed row width.
+    assert_eq!(
+        back.stride_bytes,
+        image.width_pixels * image.channels * image.bytes_per_channel
+    );
     assert_eq!(back.buffer.len(), image.buffer.len());
     assert_eq!(back.buffer, image.buffer);
 }

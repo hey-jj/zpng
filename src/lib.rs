@@ -11,7 +11,7 @@
 //!
 //! A compressed blob is an 8-byte header followed by one zstd frame. The header
 //! holds the magic value `0xFBF8`, width, height, channel count, and bytes per
-//! channel. See [`compress`] for the field widths and truncation rules.
+//! channel. See [`compress`] for the field widths and the limits it enforces.
 //!
 //! # Example
 //!
@@ -94,6 +94,11 @@ pub enum CompressError {
         /// Bytes the buffer holds.
         got: usize,
     },
+    /// A geometry value does not fit its header field. Width and height use a
+    /// `u16` field each, channels and bytes-per-channel a `u8` field each.
+    HeaderFieldOverflow,
+    /// zstd failed to compress the filtered bytes.
+    Zstd,
 }
 
 impl fmt::Display for CompressError {
@@ -108,6 +113,10 @@ impl fmt::Display for CompressError {
             CompressError::BufferSizeMismatch { expected, got } => {
                 write!(f, "buffer holds {got} bytes, geometry needs {expected}")
             }
+            CompressError::HeaderFieldOverflow => {
+                write!(f, "a geometry value does not fit its header field")
+            }
+            CompressError::Zstd => write!(f, "zstd failed to compress the filtered bytes"),
         }
     }
 }
@@ -158,18 +167,26 @@ impl std::error::Error for DecodeError {}
 ///
 /// # Errors
 ///
+/// - [`CompressError::HeaderFieldOverflow`] when width or height exceeds 65535,
+///   or channels or bytes-per-channel exceeds 255.
 /// - [`CompressError::PixelTooWide`] when `bytes_per_channel * channels`
 ///   exceeds 8.
 /// - [`CompressError::GeometryOverflow`] when `width * height * pixel_bytes`
 ///   does not fit in a `u32`.
 /// - [`CompressError::BufferSizeMismatch`] when `buffer` is not exactly
 ///   `width * height * pixel_bytes` bytes.
-///
-/// The header stores width and height as `u16` and channels and
-/// bytes-per-channel as `u8`. Values wider than those fields are truncated to
-/// the low bits, so dimensions above 65535 do not survive a round trip.
+/// - [`CompressError::Zstd`] when the zstd compressor fails.
 pub fn compress(image: &ImageData) -> Result<Vec<u8>, CompressError> {
-    let pixel_bytes = image.bytes_per_channel.wrapping_mul(image.channels);
+    if image.width_pixels > u16::MAX as u32
+        || image.height_pixels > u16::MAX as u32
+        || image.channels > u8::MAX as u32
+        || image.bytes_per_channel > u8::MAX as u32
+    {
+        return Err(CompressError::HeaderFieldOverflow);
+    }
+
+    // Both factors fit in a u8 now, so the product fits in a u32.
+    let pixel_bytes = image.bytes_per_channel * image.channels;
     if pixel_bytes > MAX_PIXEL_BYTES {
         return Err(CompressError::PixelTooWide { pixel_bytes });
     }
@@ -195,9 +212,9 @@ pub fn compress(image: &ImageData) -> Result<Vec<u8>, CompressError> {
     );
 
     let frame = zstd::bulk::compress(&packing, COMPRESSION_LEVEL).map_err(|_| {
-        // compress_bound sizes the destination, so a real zstd error here means
-        // the runtime itself failed. Report it as the wide-pixel guard does not.
-        CompressError::GeometryOverflow
+        // compress_bound sizes the destination, so reaching here means zstd
+        // itself failed.
+        CompressError::Zstd
     })?;
 
     let header = Header {
@@ -218,9 +235,8 @@ pub fn compress(image: &ImageData) -> Result<Vec<u8>, CompressError> {
 /// Returns the reconstructed image on success. The pixel buffer is bit-for-bit
 /// equal to the original input.
 ///
-/// `stride_bytes` in the result is `width_pixels * channels`. It omits
-/// `bytes_per_channel`, so it is only the true row width when
-/// `bytes_per_channel` is 1. The pixel data round-trips correctly regardless.
+/// `stride_bytes` in the result is the tightly packed row width,
+/// `width_pixels * channels * bytes_per_channel`.
 ///
 /// # Errors
 ///
@@ -298,8 +314,8 @@ pub fn decompress(buffer: &[u8]) -> Result<ImageData, DecodeError> {
         channels,
         width_pixels: width,
         height_pixels: height,
-        // Mirrors the format quirk: stride drops bytes_per_channel.
-        stride_bytes: width.wrapping_mul(channels),
+        // width <= 65535 and pixel_bytes <= 8, so the product fits in a u32.
+        stride_bytes: width * pixel_bytes,
     })
 }
 

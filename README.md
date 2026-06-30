@@ -58,8 +58,9 @@ width, `channels * bytes_per_channel`, must be 8 or less. Compress returns
 
 ## Errors
 
-`compress` returns a `CompressError`: the pixel byte width exceeds 8, the
-geometry overflows 32-bit pixel math, or the buffer does not match the geometry.
+`compress` returns a `CompressError`: a dimension exceeds its header field, the
+pixel byte width exceeds 8, the geometry overflows 32-bit pixel math, the buffer
+does not match the geometry, or zstd fails.
 `decompress` returns a `DecodeError`: the blob is too short, the magic is wrong,
 the header geometry is out of range, the zstd frame fails to decode, or the
 frame size does not match the geometry. Both types implement `std::error::Error`.

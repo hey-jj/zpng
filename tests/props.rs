@@ -29,7 +29,7 @@ proptest! {
         prop_assert_eq!(back.height_pixels, h);
         prop_assert_eq!(back.channels, channels);
         prop_assert_eq!(back.bytes_per_channel, bytes_per_channel);
-        prop_assert_eq!(back.stride_bytes, w * channels);
+        prop_assert_eq!(back.stride_bytes, w * channels * bytes_per_channel);
     }
 
     /// Compress output always starts with the correct little-endian header for

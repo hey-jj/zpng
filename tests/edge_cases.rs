@@ -1,10 +1,10 @@
 //! Degenerate and boundary geometries. Zero-area images, single rows and
-//! columns, the maximum accepted pixel width, and header truncation.
+//! columns, the maximum accepted pixel width, and header field overflow.
 
 mod common;
 
 use common::{assert_roundtrip, build, Pattern};
-use zpng::ImageData;
+use zpng::{CompressError, ImageData};
 
 /// Pixel byte width exactly 8 is accepted. channels=4, bytes_per_channel=2.
 #[test]
@@ -106,26 +106,20 @@ fn max_u16_dimension() {
     assert_roundtrip(&image);
 }
 
-/// Dimensions above 65535 truncate to the low 16 bits in the header. This is a
-/// format limit, recorded here so the behavior stays stable.
-///
-/// Compress reads the full geometry to size the pixel buffer, but the header
-/// only stores 16 bits of width. The stored width here is 1, so the recorded
-/// dimension differs from the real one. The blob no longer round-trips: the
-/// frame holds more bytes than the truncated geometry expects, and decompress
-/// reports the size mismatch.
+/// A width above 65535 does not fit the u16 header field, so compress rejects it
+/// rather than truncating to the low 16 bits and emitting a blob that cannot
+/// round trip. The buffer matches the real geometry, so the only failure is the
+/// field overflow.
 #[test]
-fn dimension_truncation_is_documented() {
-    // width 0x10001 truncates to 1 in the header field.
+fn dimension_above_u16_is_rejected() {
     let width: u32 = 0x1_0001;
     let mut image = build(1, 1, 1, 1, Pattern::Solid(42));
     image.width_pixels = width;
     image.height_pixels = 1;
-    image.buffer = vec![42u8; width as usize]; // buffer matches the real geometry
+    image.buffer = vec![42u8; width as usize];
 
-    let blob = zpng::compress(&image).expect("compress");
-    // Stored width is the low 16 bits.
-    assert_eq!(u16::from_le_bytes([blob[2], blob[3]]), 1);
-    // The truncated header cannot describe the frame, so decode fails.
-    assert!(zpng::decompress(&blob).is_err());
+    assert_eq!(
+        zpng::compress(&image),
+        Err(CompressError::HeaderFieldOverflow)
+    );
 }
