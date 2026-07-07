@@ -35,6 +35,13 @@ fn decompress_garbage_frame() {
     assert!(zpng::decompress(&blob).is_err());
 }
 
+/// A valid header with no zstd frame is malformed.
+#[test]
+fn decompress_rejects_missing_frame() {
+    let blob = [0xF8, 0xFB, 0, 0, 0, 0, 3, 1];
+    assert_eq!(zpng::decompress(&blob), Err(DecodeError::Zstd));
+}
+
 /// Valid header but the frame decodes to fewer bytes than the geometry needs.
 #[test]
 fn decompress_size_mismatch() {

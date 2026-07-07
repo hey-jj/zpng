@@ -270,6 +270,9 @@ pub fn decompress(buffer: &[u8]) -> Result<ImageData, DecodeError> {
     let byte_count = byte_count(width, height, pixel_bytes).ok_or(DecodeError::BadGeometry)?;
 
     let frame = &buffer[HEADER_BYTES..];
+    if frame.is_empty() {
+        return Err(DecodeError::Zstd);
+    }
     // Read the frame's declared content size before allocating. A short blob
     // cannot force a large allocation, and a frame that disagrees with the
     // geometry is rejected without decoding.
