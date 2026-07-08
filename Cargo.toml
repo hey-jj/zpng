@@ -1,6 +1,6 @@
 [package]
 name = "zpng"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "lossless image codec (filter + zstd) faster and often smaller than PNG"
 license = "MIT"
